@@ -1,5 +1,6 @@
 ﻿using BCCodingTest.Common;
 using BCCodingTest.Handler;
+using BCCodingTest.ServiceCheck;
 using Microsoft.AspNetCore.Diagnostics;
 using Newtonsoft.Json;
 using System.Net;
@@ -17,6 +18,23 @@ namespace BCCodingTest
 
         public void ConfigureServices(IServiceCollection services)
         {
+            var httpServiceUrl = "https://www.baidu.com";
+            services.AddHttpClient();
+            var httpClient = services.BuildServiceProvider().GetRequiredService<HttpClient>();
+            var checker = new HttpServiceConnectionChecker(httpServiceUrl, httpClient);
+            if (!checker.CheckConnection().Result)
+            {
+                throw new Exception("HTTP服务连接失败");
+            }
+            var connectionString = Configuration.GetConnectionString("DefaultConnection");
+            var dataBaseChecker = new DatabaseConnectionChecker(connectionString);
+            if (!checker.CheckConnection().Result)
+            {
+                throw new Exception("Database Server Connect Fail");
+            }
+            // 继续配置其他服务
+            services.AddControllers();
+            services.AddControllers();
             services.AddRazorPages();
             services.AddScoped<StudentsListHandleService>();
             services.AddControllers();
@@ -47,36 +65,7 @@ namespace BCCodingTest
             });
 
             app.UseRouting();
-            app.UseExceptionHandler(builder =>
-            {
-                builder.Run(async context =>
-                {
-                    context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    context.Response.ContentType = "application/json";
-
-                    var exception = context.Features.Get<IExceptionHandlerFeature>();
-                    if (exception != null)
-                    {
-                        var error = new ErrorMessage()
-                        {
-                            StackTrace = exception.Error.StackTrace,
-                            Message = exception.Error.Message
-                        };
-                        var errObj = JsonConvert.SerializeObject(error);
-
-                        await context.Response.WriteAsync(errObj).ConfigureAwait(false);
-                    }
-                });
-            });
             app.UseAuthorization();
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-            else
-            {
-                app.UseExceptionHandler("/Error");
-            }
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
